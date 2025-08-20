@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import jszip
+import zipfile
 import argparse
 import os
 
@@ -11,33 +11,31 @@ def process_video(video_file, color_mode, color_count, max_width, frame_rate, ma
     video_fps = cap.get(cv2.CAP_PROP_FPS)  # 获取视频的实际帧率
     interval = int(video_fps / frame_rate)  # 计算帧提取间隔
 
-    # 初始化ZIP文件
-    zip_file = jszip.JSZip()
+    # 创建 ZIP 文件
+    zip_filename = 'output.zip'
+    with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zip_file:
 
-    # 遍历视频帧
-    for frame_idx in range(0, total_frames, interval):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)  # 跳到当前帧
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # 缩放帧
-        frame_resized = resize_frame(frame, max_width)
-        
-        # 颜色分割
-        colors = extract_colors(frame_resized, color_mode, color_count, manual_colors)
-        
-        # 生成颜色分割图
-        segmented_image = generate_color_mask(frame_resized, colors)
-        
-        # 将分割图保存到ZIP
-        zip_file.file(f'frame_{frame_idx}.png', segmented_image)
+        # 遍历视频帧
+        for frame_idx in range(0, total_frames, interval):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)  # 跳到当前帧
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # 缩放帧
+            frame_resized = resize_frame(frame, max_width)
+            
+            # 颜色分割
+            colors = extract_colors(frame_resized, color_mode, color_count, manual_colors)
+            
+            # 生成颜色分割图
+            segmented_image = generate_color_mask(frame_resized, colors)
+            
+            # 将分割图保存到ZIP
+            frame_filename = f'frame_{frame_idx}.png'
+            _, buffer = cv2.imencode('.png', segmented_image)
+            zip_file.writestr(frame_filename, buffer)
 
-    # 保存结果为ZIP
-    os.makedirs('output', exist_ok=True)  # 创建输出文件夹
-    with open('output/output.zip', 'wb') as f:
-        f.write(zip_file.generate())
-    
     cap.release()
 
 def resize_frame(frame, max_width):
