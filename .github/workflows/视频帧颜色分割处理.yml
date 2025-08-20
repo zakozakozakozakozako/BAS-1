@@ -1,0 +1,48 @@
+name: 视频帧颜色分割处理
+
+on:
+  workflow_dispatch:
+    inputs:
+      color_mode:
+        description: '颜色模式: auto (自动) 或 manual (手动)'
+        required: true
+        default: 'auto'
+      color_count:
+        description: '颜色数量 (仅在自动模式下有效)'
+        required: true
+        default: '32'
+      max_width:
+        description: '最大宽度 (像素)'
+        required: true
+        default: '400'
+      manual_colors:
+        description: '手动输入的颜色列表 (仅在手动模式下有效)'
+        required: false
+        default: ''
+
+jobs:
+  process_video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg python3-pip
+          pip3 install numpy opencv-python jszip
+
+      - name: 使用输入视频文件进行处理
+        run: |
+          python3 process_video.py --video_file ./input.mp4 \
+            --color_mode ${{ github.event.inputs.color_mode }} \
+            --color_count ${{ github.event.inputs.color_count }} \
+            --max_width ${{ github.event.inputs.max_width }} \
+            --manual_colors ${{ github.event.inputs.manual_colors }}
+
+      - name: 上传处理结果
+        uses: actions/upload-artifact@v3
+        with:
+          name: processed-video
+          path: ./output.zip
