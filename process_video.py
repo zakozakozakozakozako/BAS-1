@@ -4,16 +4,19 @@ import jszip
 import argparse
 import os
 
-def process_video(video_file, color_mode, color_count, max_width, manual_colors=None):
+def process_video(video_file, color_mode, color_count, max_width, frame_rate, manual_colors=None):
     # 加载视频文件
     cap = cv2.VideoCapture(video_file)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
+    video_fps = cap.get(cv2.CAP_PROP_FPS)  # 获取视频的实际帧率
+    interval = int(video_fps / frame_rate)  # 计算帧提取间隔
+
     # 初始化ZIP文件
     zip_file = jszip.JSZip()
 
     # 遍历视频帧
-    for frame_idx in range(total_frames):
+    for frame_idx in range(0, total_frames, interval):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)  # 跳到当前帧
         ret, frame = cap.read()
         if not ret:
             break
@@ -80,7 +83,8 @@ if __name__ == "__main__":
     parser.add_argument('--color_mode', required=True, help="颜色模式: auto 或 manual")
     parser.add_argument('--color_count', type=int, required=True, help="颜色数量")
     parser.add_argument('--max_width', type=int, required=True, help="最大宽度")
+    parser.add_argument('--frame_rate', type=int, required=True, help="帧率 (FPS)")
     parser.add_argument('--manual_colors', nargs='*', help="手动输入的颜色列表")
 
     args = parser.parse_args()
-    process_video(args.video_file, args.color_mode, args.color_count, args.max_width, args.manual_colors)
+    process_video(args.video_file, args.color_mode, args.color_count, args.max_width, args.frame_rate, args.manual_colors)
