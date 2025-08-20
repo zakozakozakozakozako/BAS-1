@@ -42,7 +42,7 @@ jobs:
             --manual_colors ${{ github.event.inputs.manual_colors }}
 
       - name: 上传处理结果
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: processed-video
           path: ./output.zip
