@@ -1,4 +1,4 @@
-name: Fake Duration Video
+name: Fake Ultra Long Video (5201314 hours)
 
 on:
   workflow_dispatch:
@@ -6,30 +6,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
 
-      - name: Generate Fake Duration Video
+      - name: Generate base 10s video (white + trim/concat style)
         run: |
-          mkdir -p output
-          # 用 lavfi 生成一个 5 秒白色视频作为 input.mp4
-          ffmpeg -y -f lavfi -i color=c=white:s=640x480:d=5 -an input.mp4
-          # 按图片里的命令伪装时长
-          ffmpeg -i input.mp4 -filter_complex \
-          "[0]trim=end=5,setpts=PTS-STARTPTS[v1]; \
-           [0]trim=start=5,setpts=PTS-PTS[v2]; \
-           [v1][v2]concat=n=2:v=1:a=0" \
-          output/fake_duration.mp4
+          # 生成白色纯色视频 (10 秒)
+          ffmpeg -f lavfi -t 10 -i color=c=white:s=640x480 -pix_fmt yuv420p -an white.mp4
 
-      - name: Upload Artifact
+          # 按你图片里的拼接命令思路 (这里只是演示)
+          ffmpeg -i white.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-PTS[v2];[v1][v2]concat=n=2:v=1:a=0" -an base.mp4
+
+      - name: Stretch to fake duration 5201314 hours
+        run: |
+          HOURS=5201314
+          SECS=$(( HOURS * 3600 ))  # 转换成秒
+          FACTOR=$(echo "$SECS / 10" | bc) # 10秒视频需要放大多少倍
+          echo "放大倍数: $FACTOR"
+          ffmpeg -i base.mp4 -filter_complex "setpts=PTS*${FACTOR}" -an fake_5201314h.mp4
+          ls -lh fake_5201314h.mp4
+
+      - name: Upload fake video
         uses: actions/upload-artifact@v4
         with:
-          name: fake-duration-video
-          path: output/fake_duration.mp4
+          name: fake_5201314h_video
+          path: fake_5201314h.mp4
