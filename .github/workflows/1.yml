@@ -1,4 +1,4 @@
-name: Generate Fake 5201314h Video
+name: Generate Fake 11min Video
 
 on:
   workflow_dispatch:
@@ -6,26 +6,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Generate 1s black video
+      - name: Generate 11 min black video
         run: |
-          ffmpeg -f lavfi -t 1 -i color=c=black:s=160x90 -pix_fmt yuv420p input.mp4
-          echo "生成 1 秒黑色视频完成"
+          ffmpeg -f lavfi -i color=c=black:s=160x90:d=660 -pix_fmt yuv420p input.mp4
+          echo "生成 11 分钟黑色视频完成"
 
-      - name: Stretch to fake 5201314h duration
+      - name: Process the video (split and concat, if needed)
         run: |
-          HOURS=5201314
-          SECS=$(( HOURS * 3600 ))
-          FACTOR=$SECS  # 因为原视频是 1 秒，所以倍数就是总秒数
-          ffmpeg -i input.mp4 -filter_complex "setpts=PTS*${FACTOR}" -an fake_5201314h.mp4
-          echo "生成假时长视频完成"
-          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 fake_5201314h.mp4
+          # 如果需要拼接或者分割，执行以下命令
+          ffmpeg -i input.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-STARTPTS[v2];[v1][v2]concat=n=2:v=1:a=0 -t 10 fake.mp4"
+          echo "视频处理完成"
 
       - name: Upload fake video
         uses: actions/upload-artifact@v4
         with:
-          name: fake_5201314h_video
-          path: fake_5201314h.mp4
+          name: fake_11min_video
+          path: input.mp4
