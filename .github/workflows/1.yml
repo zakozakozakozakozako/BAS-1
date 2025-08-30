@@ -1,4 +1,4 @@
-name: Generate Fake 11min Video
+name: Generate Fake Long Video
 
 on:
   workflow_dispatch:
@@ -11,19 +11,18 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Generate 11 min black video
+      - name: Generate long black video
         run: |
-          ffmpeg -f lavfi -i color=c=black:s=160x90:d=660 -pix_fmt yuv420p input.mp4
-          echo "生成 11 分钟黑色视频完成"
+          ffmpeg -f lavfi -i color=c=black:s=160x90:d="2000000000" -r="0.0000000005" -pix_fmt yuv420p input.mp4
+          echo "生成超长黑色视频完成"
 
-      - name: Process the video (split and concat, if needed)
+      - name: Process video (split and concat)
         run: |
-          # 如果需要拼接或者分割，执行以下命令
-          ffmpeg -i input.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-STARTPTS[v2];[v1][v2]concat=n=2:v=1:a=0 -t 10 fake.mp4"
+          ffmpeg -i input.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-PTS[v2];[v1][v2]concat=n=2:v=1:a=0" -t 10 "你这视频不对啊.mp4"
           echo "视频处理完成"
 
-      - name: Upload fake video
+      - name: Upload processed video
         uses: actions/upload-artifact@v4
         with:
-          name: fake_11min_video
-          path: input.mp4
+          name: fake_long_video
+          path: "你这视频不对啊.mp4"
