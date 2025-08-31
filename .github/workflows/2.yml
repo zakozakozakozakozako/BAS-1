@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       years:
-        description: "视频显示的年数"
+        description: "视频显示的年数（支持整数）"
         required: true
         default: "100"
 
@@ -19,13 +19,16 @@ jobs:
       - name: Generate ultra long fake video
         run: |
           YEARS=${{ github.event.inputs.years }}
-          SCALE=$(echo "$YEARS * 31536000" | bc)  # 每年 31536000 秒
-          
-          echo "生成一个显示 ${YEARS} 年时长的视频..."
-          ffmpeg -f lavfi -i color=c=black:s=160x90:d=1 \
-          -vf "fps=1,setpts=PTS*${SCALE}" \
-          -pix_fmt yuv420p fake_long_${YEARS}y.mp4
-          
+
+          # 每年按 365.25 天算（含闰年）
+          SECONDS=$(echo "$YEARS * 365.25 * 86400" | bc)
+
+          echo "生成一个显示 ${YEARS} 年时长的视频 (${SECONDS} 秒)..."
+
+          # 生成视频并写入总时长，让播放器识别
+          ffmpeg -f lavfi -i color=c=black:s=160x90 \
+          -t ${SECONDS} -r 1 -pix_fmt yuv420p fake_long_${YEARS}y.mp4
+
           echo "生成完成"
 
       - name: Upload fake video
