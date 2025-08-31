@@ -1,0 +1,35 @@
+name: Generate Fake Long Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "视频显示的年数"
+        required: true
+        default: "100"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate ultra long fake video
+        run: |
+          YEARS=${{ github.event.inputs.years }}
+          SCALE=$(echo "$YEARS * 31536000" | bc)  # 每年 31536000 秒
+          
+          echo "生成一个显示 ${YEARS} 年时长的视频..."
+          ffmpeg -f lavfi -i color=c=black:s=160x90:d=1 \
+          -vf "fps=1,setpts=PTS*${SCALE}" \
+          -pix_fmt yuv420p fake_long_${YEARS}y.mp4
+          
+          echo "生成完成"
+
+      - name: Upload fake video
+        uses: actions/upload-artifact@v4
+        with:
+          name: fake_long_video
+          path: fake_long_*.mp4
