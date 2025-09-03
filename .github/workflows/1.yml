@@ -25,4 +25,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fake_long_video
-          path: "你这视频不对啊.mp4"
+          path: "创意文画1629.mp4"
