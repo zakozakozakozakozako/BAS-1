@@ -13,12 +13,12 @@ jobs:
 
       - name: Generate long black video
         run: |
-          ffmpeg -f lavfi -i color=c=black:s=160x90:d="36000" -r 0.0000277777777777 -pix_fmt yuv420p input.mp4
+          ffmpeg -f lavfi -i color=c=black:s=160x90:d="72000" -r 0.0000138888888888 -pix_fmt yuv420p input.mp4
           echo "生成超长黑色视频完成"
 
       - name: Process video (split and concat)
         run: |
-          ffmpeg -i input.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-PTS[v2];[v1][v2]concat=n=2:v=1:a=0" -t 10 "你这视频不对啊.mp4"
+          ffmpeg -i input.mp4 -filter_complex "[0]trim=end=5,setpts=PTS-STARTPTS[v1];[0]trim=start=5,setpts=PTS-PTS[v2];[v1][v2]concat=n=2:v=1:a=0" -t 10 "创意文画1629.mp4"
           echo "视频处理完成"
 
       - name: Upload processed video
