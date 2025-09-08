@@ -3,36 +3,137 @@ name: Generate Fake Long Video
 on:
   workflow_dispatch:
     inputs:
-      years:
-        description: "视频显示的年数（支持整数）"
-        required: true
-        default: "100"
+      duration_seconds:
+        description: '伪造的时长（秒）。默认 2147483647，大约 68 年）'
+        required: false
+        default: '2147483647'
+      output_name:
+        description: '输出文件名'
+        required: false
+        default: 'fake_long.mp4'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Generate ultra long fake video
+      - name: Generate short sample (black video + silent audio)
         run: |
-          YEARS=${{ github.event.inputs.years }}
+          # 生成一个非常短（0.1s）的 MP4 示例（含静音轨，以提高兼容性）
+          ffmpeg -f lavfi -i color=c=black:s=160x90:d=0.1 \
+                 -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+                 -shortest -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p \
+                 -c:a aac -b:a 32k -movflags +faststart -y short.mp4
+          ls -lh short.mp4
 
-          # 每年按 365.25 天算（含闰年）
-          SECONDS=$(echo "$YEARS * 365.25 * 86400" | bc)
+      - name: Patch MP4 header to fake duration
+        env:
+          DURATION: ${{ github.event.inputs.duration_seconds }}
+          OUTPUT: ${{ github.event.inputs.output_name }}
+        run: |
+          cat > patch_duration.py <<'PY'
+#!/usr/bin/env python3
+import sys, struct
 
-          echo "生成一个显示 ${YEARS} 年时长的视频 (${SECONDS} 秒)..."
+def read_uint32(b, offset):
+    return struct.unpack_from('>I', b, offset)[0]
 
-          # 生成视频并写入总时长，让播放器识别
-          ffmpeg -f lavfi -i color=c=black:s=160x90 \
-          -t ${SECONDS} -r 1 -pix_fmt yuv420p fake_long_${YEARS}y.mp4
+def write_uint32(b, offset, val):
+    b[offset:offset+4] = struct.pack('>I', val & 0xffffffff)
 
-          echo "生成完成"
+def write_uint64(b, offset, val):
+    b[offset:offset+8] = struct.pack('>Q', val & 0xffffffffffffffff)
 
-      - name: Upload fake video
+def find_boxes(data, box_name):
+    idx = 0
+    while True:
+        idx = data.find(box_name, idx)
+        if idx == -1:
+            break
+        if idx < 4:
+            idx += 4
+            continue
+        boxstart = idx - 4
+        # try to read size safely
+        try:
+            box_size = read_uint32(data, boxstart)
+        except:
+            break
+        yield boxstart, box_size
+        idx = idx + 4
+
+def patch_mvhd_mdhd(infile, outfile, desired_seconds):
+    with open(infile, 'rb') as f:
+        data = bytearray(f.read())
+    modified = False
+
+    # patch mvhd
+    for boxstart, box_size in find_boxes(data, b'mvhd'):
+        if box_size == 0:
+            continue
+        if boxstart + box_size > len(data):
+            continue
+        version = data[boxstart+8]
+        if version == 0:
+            timescale_offset = boxstart + 20
+            duration_offset = boxstart + 24
+            write_uint32(data, timescale_offset, 1)
+            write_uint32(data, duration_offset, int(desired_seconds))
+            modified = True
+        else:
+            timescale_offset = boxstart + 28
+            duration_offset = boxstart + 32
+            write_uint32(data, timescale_offset, 1)
+            write_uint64(data, duration_offset, int(desired_seconds))
+            modified = True
+
+    # patch all mdhd (track-level)
+    for boxstart, box_size in find_boxes(data, b'mdhd'):
+        if box_size == 0:
+            continue
+        if boxstart + box_size > len(data):
+            continue
+        version = data[boxstart+8]
+        if version == 0:
+            timescale_offset = boxstart + 20
+            duration_offset = boxstart + 24
+            write_uint32(data, timescale_offset, 1)
+            write_uint32(data, duration_offset, int(desired_seconds))
+            modified = True
+        else:
+            timescale_offset = boxstart + 28
+            duration_offset = boxstart + 32
+            write_uint32(data, timescale_offset, 1)
+            write_uint64(data, duration_offset, int(desired_seconds))
+            modified = True
+
+    if not modified:
+        print("警告：没有找到可修改的 mvhd/mdhd 原子，未做任何更改。")
+        sys.exit(2)
+
+    with open(outfile, 'wb') as f:
+        f.write(data)
+    print("已生成：", outfile)
+
+if __name__ == '__main__':
+    if len(sys.argv) < 4:
+        print("Usage: patch_duration.py input.mp4 output.mp4 seconds")
+        sys.exit(1)
+    infile = sys.argv[1]
+    outfile = sys.argv[2]
+    seconds = int(sys.argv[3])
+    patch_mvhd_mdhd(infile, outfile, seconds)
+PY
+
+          python3 patch_duration.py short.mp4 "$OUTPUT" "$DURATION"
+          ls -lh "$OUTPUT" || true
+          # 显示 ffprobe 的报告（可能会显示你的伪造时长）
+          ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$OUTPUT" || true
+
+      - name: Upload processed video (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: fake_long_video
-          path: fake_long_*.mp4
+          path: ${{ github.event.inputs.output_name }}
