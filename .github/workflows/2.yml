@@ -2,44 +2,42 @@ name: Generate Fake Long Video
 
 on:
   workflow_dispatch:
-    inputs:
-      duration_seconds:
-        description: '伪造的时长（秒）。默认 2147483647，大约 68 年）'
-        required: false
-        default: '2147483647'
-      output_name:
-        description: '输出文件名'
-        required: false
-        default: 'fake_long.mp4'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Generate short sample (black video + silent audio)
         run: |
-          ffmpeg -f lavfi -i color=c=black:s=160x90:d=0.1 \
-                 -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
-                 -shortest -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p \
-                 -c:a aac -b:a 32k -movflags +faststart -y short.mp4
-          ls -lh short.mp4
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-      - name: Patch MP4 header to fake duration (base64-safe)
-        env:
-          DURATION: ${{ github.event.inputs.duration_seconds }}
-          OUTPUT: ${{ github.event.inputs.output_name }}
+      - name: Get audio duration
+        id: get_dur
         run: |
-          echo 'IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgc3lzLCBzdHJ1Y3QKCmRlZiByZWFkX3VpbnQzMihiKQ==' | base64 -d > patch_duration.py
-          chmod +x patch_duration.py
-          python3 patch_duration.py short.mp4 "$OUTPUT" "$DURATION"
-          ls -lh "$OUTPUT" || true
-          ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$OUTPUT" || true
+          dur=$(ffprobe -i audio.mp3 -show_entries format=duration -v quiet -of csv="p=0")
+          echo "duration=$dur" >> $GITHUB_ENV
+          echo "音频时长: $dur 秒"
 
-      - name: Upload processed video (artifact)
+      - name: Generate black video with same length as audio
+        run: |
+          ffmpeg -f lavfi -i color=c=black:s=160x90:r=1 -t ${{ env.duration }} -pix_fmt yuv420p silent_black.mp4
+          echo "生成与音频等长的黑色视频完成"
+
+      - name: Combine with audio
+        run: |
+          ffmpeg -i silent_black.mp4 -i audio.mp3 -c:v copy -c:a aac -shortest input.mp4
+          echo "黑色视频与音频合并完成"
+
+      - name: Process video (split and concat)
+        run: |
+          ffmpeg -i input.mp4 -filter_complex "[0:v]trim=end=5,setpts=PTS-STARTPTS[v1];[0:v]trim=start=5,setpts=PTS-PTS[v2];[v1][v2]concat=n=2:v=1:a=0" \
+          -map 1:a -c:a copy -t 10 "创意文画1629.mp4"
+          echo "视频处理完成"
+
+      - name: Upload processed video
         uses: actions/upload-artifact@v4
         with:
           name: fake_long_video
-          path: ${{ github.event.inputs.output_name }}
+          path: "创意文画1629.mp4"
